@@ -1,6 +1,6 @@
 """
 Scan Scene - WiFi scanning and Area selection.
-Displays nearby networks as explorable cyber areas.
+Displays nearby networks as explorable cyber areas with modern polished UI.
 """
 
 import pygame
@@ -12,7 +12,7 @@ from worldgen.area_gen import AreaGenerator
 
 
 class ScanScene(BaseScene):
-    """WiFi scan and Area selection screen."""
+    """WiFi scan and Area selection screen - Modern polished UI."""
     
     target_fps = 30
     
@@ -32,11 +32,14 @@ class ScanScene(BaseScene):
         self.areas = []
         self.selected_index = 0
         self.scroll_offset = 0
-        self.max_visible = 5
+        self.max_visible = 4
         
         # Animation
         self.pulse_timer = 0.0
         self.scan_angle = 0.0
+        self.card_scales = []
+        self.card_bobs = []
+        self.anim_timer = 0.0
     
     def on_enter(self):
         """Start scanning when entering scene."""
@@ -92,12 +95,17 @@ class ScanScene(BaseScene):
         if self.areas:
             self.areas[0]["is_boss_area"] = True
         
+        # Initialize card animations
+        self.card_scales = [1.0] * len(self.areas)
+        self.card_bobs = [0.0] * len(self.areas)
+        
         self.selected_index = 0
         self.scroll_offset = 0
     
     def update(self, dt: float):
         """Update scan animation."""
         self.pulse_timer += dt
+        self.anim_timer += dt
         
         if self.is_scanning:
             self.scan_timer += dt
@@ -105,6 +113,16 @@ class ScanScene(BaseScene):
             
             if self.scan_timer >= self.scan_duration:
                 self._complete_scan()
+        else:
+            # Update card animations
+            for i in range(len(self.areas)):
+                # Bob animation (increased speed from 2 to 3.5)
+                self.card_bobs[i] = math.sin(self.anim_timer * 3.5 + i * 0.5) * 2
+                
+                # Scale animation - selected card is larger (increased responsiveness from 0.12 to 0.20)
+                target_scale = 1.08 if i == self.selected_index else 0.96
+                if i < len(self.card_scales):
+                    self.card_scales[i] += (target_scale - self.card_scales[i]) * 0.20
     
     def handle_event(self, event: pygame.event.Event):
         """Handle input."""
@@ -159,8 +177,10 @@ class ScanScene(BaseScene):
         center_x = self.width // 2
         center_y = self.height // 2
         
-        # Background
-        screen.fill(self.colors["bg_dark"])
+        # Gradient background
+        for y in range(self.height):
+            color_val = int(15 + (y / self.height) * 25)
+            pygame.draw.line(screen, (color_val, color_val, color_val + 5), (0, y), (self.width, y))
         
         # Radar sweep effect
         max_radius = 80
@@ -205,15 +225,22 @@ class ScanScene(BaseScene):
                               fill_color=self.colors["accent_cyan"])
     
     def _draw_area_list(self, screen: pygame.Surface):
-        """Draw list of found areas."""
-        # Header
-        self.draw_panel(screen, 5, 5, self.width - 10, 30)
+        """Draw list of found areas with modern card design."""
+        # Gradient background
+        for y in range(self.height):
+            color_val = int(15 + (y / self.height) * 25)
+            pygame.draw.line(screen, (color_val, color_val, color_val + 5), (0, y), (self.width, y))
+        
+        # Header panel
+        pygame.draw.rect(screen, (10, 10, 15), (0, 0, self.width, 55))
+        pygame.draw.line(screen, (0, 200, 200), (0, 55), (self.width, 55), 2)
+        
         self.draw_text(screen, "AREA SELECT", self.width // 2, 12,
-                      color=self.colors["accent_cyan"], size=18, center=True)
+                      color=self.colors["accent_cyan"], size=20, center=True)
         
         area_count = f"{len(self.areas)} networks found"
-        self.draw_text(screen, area_count, self.width // 2, 26,
-                      color=self.colors["text_dim"], size=12, center=True)
+        self.draw_text(screen, area_count, self.width // 2, 32,
+                      color=self.colors["text_dim"], size=11, center=True)
         
         if not self.areas:
             # No networks found
@@ -225,9 +252,9 @@ class ScanScene(BaseScene):
                           color=self.colors["text_dim"], size=14, center=True)
             return
         
-        # Area list
-        list_y = 45
-        item_height = 36
+        # Area cards
+        card_height = 65
+        start_y = 70
         
         for i in range(self.max_visible):
             area_idx = self.scroll_offset + i
@@ -235,72 +262,121 @@ class ScanScene(BaseScene):
                 break
             
             area = self.areas[area_idx]
-            y = list_y + i * item_height
+            y = start_y + i * (card_height + 6)
+            bob = self.card_bobs[area_idx] if area_idx < len(self.card_bobs) else 0
+            scale = self.card_scales[area_idx] if area_idx < len(self.card_scales) else 1.0
             
-            self._draw_area_item(screen, area, 10, y, 
-                                self.width - 20, item_height - 4,
-                                selected=(area_idx == self.selected_index))
+            self._draw_area_card(screen, area, 8, y + bob, 
+                                self.width - 16, card_height,
+                                selected=(area_idx == self.selected_index),
+                                scale=scale)
         
-        # Scroll indicators
-        if self.scroll_offset > 0:
-            self.draw_text(screen, "▲", self.width - 15, list_y - 5,
-                          color=self.colors["accent_cyan"], size=14)
-        if self.scroll_offset + self.max_visible < len(self.areas):
-            self.draw_text(screen, "▼", self.width - 15, 
-                          list_y + self.max_visible * item_height - 10,
-                          color=self.colors["accent_cyan"], size=14)
+        # Footer
+        footer_y = self.height - 35
+        pygame.draw.line(screen, (0, 200, 200), (0, footer_y), (self.width, footer_y), 1)
         
-        # Instructions
         self.draw_text(screen, "[Z] Jack In  [X] Back  [START] Rescan",
-                      self.width // 2, self.height - 15,
-                      color=self.colors["text_dim"], size=12, center=True)
+                      self.width // 2, footer_y + 15,
+                      color=self.colors["text_dim"], size=10, center=True)
     
-    def _draw_area_item(self, screen: pygame.Surface, area: dict,
+    def _draw_area_card(self, screen: pygame.Surface, area: dict,
                         x: int, y: int, width: int, height: int,
-                        selected: bool = False):
-        """Draw a single area list item."""
+                        selected: bool = False, scale: float = 1.0):
+        """Draw a modern area card with polish."""
         is_cooldown = area.get("on_cooldown", False)
         
-        # Background
+        # Apply scale from center
+        scaled_width = int(width * scale)
+        scaled_height = int(height * scale)
+        offset_x = (width - scaled_width) // 2
+        offset_y = (height - scaled_height) // 2
+        
+        x = int(x + offset_x)
+        y = int(y + offset_y)
+        
+        # Card background and border
         if is_cooldown:
-            bg_color = (40, 40, 50)  # Grayed out
-            border_color = self.colors["text_dim"]
+            border_color = (100, 100, 120)
+            bg_color = (30, 30, 40)
         elif selected:
-            bg_color = (40, 50, 70)
-            border_color = self.colors["accent_cyan"]
+            border_color = (0, 255, 200)
+            bg_color = (40, 60, 70)
+            # Glow effect for selected
+            pygame.draw.rect(screen, border_color, (x - 2, y - 2, scaled_width + 4, scaled_height + 4), 3)
         else:
-            bg_color = self.colors["bg_panel"]
-            border_color = self.colors["text_dim"]
+            border_color = (80, 100, 120)
+            bg_color = (25, 35, 45)
         
-        self.draw_panel(screen, x, y, width, height, 
-                       color=bg_color, border_color=border_color, border_width=1)
+        pygame.draw.rect(screen, bg_color, (x, y, scaled_width, scaled_height))
+        pygame.draw.rect(screen, border_color, (x, y, scaled_width, scaled_height), 2)
         
-        # Boss indicator
+        # Gradient overlay on card
+        for i in range(scaled_height):
+            alpha = int((1 - i / scaled_height) * 20)
+            if not is_cooldown and area.get("is_boss_area"):
+                color = (200 + alpha, 50 + alpha, 50 + alpha)
+            else:
+                color = (alpha, alpha // 2, alpha)
+            pygame.draw.line(screen, color, (x, y + i), (x + scaled_width, y + i))
+        
+        # Boss indicator bar
         if area.get("is_boss_area") and not is_cooldown:
-            pygame.draw.rect(screen, self.colors["hp_red"],
-                           (x + 2, y + 2, 4, height - 4))
+            pygame.draw.rect(screen, (255, 100, 100), (x + 1, y + 1, 3, scaled_height - 2))
         
-        # Area name
+        # Left side - Network name and status
         name = area["display_name"]
-        if len(name) > 18:
-            name = name[:16] + ".."
+        if len(name) > 16:
+            name = name[:14] + ".."
         
-        if is_cooldown:
-            name_color = self.colors["text_dim"]
-        elif area.get("is_boss_area"):
-            name_color = self.colors["accent_cyan"]
-        else:
-            name_color = self.colors["text_white"]
+        name_color = self.colors["text_dim"] if is_cooldown else self.colors["text_white"]
+        self.draw_text(screen, name, x + 12, y + 8, size=13, color=name_color)
         
-        self.draw_text(screen, name, x + 10, y + 3, color=name_color, size=14)
+        # Level badge (top right)
+        if not is_cooldown:
+            level = area["recommended_level"]
+            if level > self.game_state["navi"]["level"] + 2:
+                badge_color = self.colors["hp_red"]
+            elif level <= self.game_state["navi"]["level"]:
+                badge_color = self.colors["hp_green"]
+            else:
+                badge_color = (200, 150, 50)
+            
+            badge_text = f"Lv.{level}"
+            self.draw_text(screen, badge_text, x + scaled_width - 28, y + 8, 
+                          size=11, color=badge_color)
         
-        # Cooldown indicator
+        # Signal bars (left side, lower)
+        signal = area["signal"]
+        bars = min(4, max(1, signal // 25 + 1))
+        bar_width = 3
+        bar_spacing = 1
+        bars_x = x + 12
+        bars_y = y + 26
+        
+        for i in range(4):
+            bar_height = 3 + i * 3
+            bar_x = bars_x + i * (bar_width + bar_spacing)
+            bar_y = bars_y + 12 - bar_height
+            
+            if i < bars:
+                bar_color = self.colors["hp_green"] if bars >= 3 else (200, 150, 50)
+            else:
+                bar_color = (40, 40, 50)
+            
+            pygame.draw.rect(screen, bar_color, (bar_x, bar_y, bar_width, bar_height))
+        
+        self.draw_text(screen, f"{signal}%", bars_x + 20, bars_y - 3, size=9, 
+                      color=self.colors["text_dim"])
+        
+        # Cooldown or theme indicator (right side)
         if is_cooldown:
             hours = area.get("cooldown_hours", 24)
-            self.draw_text(screen, f"{hours}hr", x + width - 35, y + 3,
+            self.draw_text(screen, f"Cooldown", x + scaled_width - 70, y + 12,
+                          size=10, color=self.colors["hp_red"])
+            self.draw_text(screen, f"{hours}h", x + scaled_width - 70, y + 28,
                           size=12, color=self.colors["hp_red"])
         else:
-            # Theme icon (colored circle placeholder)
+            # Theme icon
             theme_colors = {
                 "digital": (0, 200, 255),
                 "fire": (255, 100, 50),
@@ -310,46 +386,22 @@ class ScanScene(BaseScene):
                 "dark": (150, 50, 200),
             }
             theme_color = theme_colors.get(area["theme"], (150, 150, 150))
-            pygame.draw.circle(screen, theme_color, (x + width - 25, y + height // 2), 8)
-        
-        # Signal bars
-        self._draw_signal_bars(screen, x + width - 55, y + 5, area["signal"])
-        
-        # Difficulty/Level
-        diff_text = f"Lv.{area['recommended_level']}"
-        if is_cooldown:
-            diff_color = self.colors["text_dim"]
-        elif area["recommended_level"] > self.game_state["navi"]["level"] + 2:
-            diff_color = self.colors["hp_red"]
-        elif area["recommended_level"] <= self.game_state["navi"]["level"]:
-            diff_color = self.colors["hp_green"]
-        else:
-            diff_color = self.colors["text_dim"]
-        self.draw_text(screen, diff_text, x + 10, y + 18, 
-                      color=diff_color, size=12)
-        
-        # Security type indicator
-        if area["security"] != "Open" and not is_cooldown:
-            pygame.draw.rect(screen, self.colors["accent_yellow"],
-                           (x + 60, y + 18, 8, 10))
-            pygame.draw.rect(screen, self.colors["accent_yellow"],
-                           (x + 62, y + 15, 4, 5), 1)
-    
-    def _draw_signal_bars(self, screen: pygame.Surface, x: int, y: int, signal: int):
-        """Draw signal strength bars (0-100 -> 1-4 bars)."""
-        bars = min(4, max(1, signal // 25 + 1))
-        bar_width = 4
-        bar_spacing = 2
-        max_height = 16
-        
-        for i in range(4):
-            bar_height = 4 + i * 4
-            bar_x = x + i * (bar_width + bar_spacing)
-            bar_y = y + max_height - bar_height
+            pygame.draw.circle(screen, theme_color, 
+                             (x + scaled_width - 18, y + scaled_height // 2), 10)
             
-            if i < bars:
-                color = self.colors["hp_green"] if bars >= 3 else self.colors["accent_yellow"]
-            else:
-                color = (50, 50, 60)
-            
-            pygame.draw.rect(screen, color, (bar_x, bar_y, bar_width, bar_height))
+            # Security indicator
+            if area.get("security") != "Open":
+                pygame.draw.rect(screen, self.colors["accent_yellow"],
+                               (x + scaled_width - 18, y + scaled_height - 15, 6, 8))
+                pygame.draw.line(screen, self.colors["accent_yellow"],
+                               (x + scaled_width - 19, y + scaled_height - 18),
+                               (x + scaled_width - 17, y + scaled_height - 18), 1)
+        
+        # Selection indicator triangle
+        if selected:
+            indicator_y = y + scaled_height + 6
+            pygame.draw.polygon(screen, (0, 255, 200), [
+                (x + scaled_width // 2 - 6, indicator_y),
+                (x + scaled_width // 2 + 6, indicator_y),
+                (x + scaled_width // 2, indicator_y + 7)
+            ])
