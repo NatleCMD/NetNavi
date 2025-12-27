@@ -28,7 +28,7 @@ class NaviSpriteManager:
         self.current_animation = "idle"
         self.frame_index = 0
         self.frame_timer = 0.0
-        self.frame_duration = 0.1  # seconds per frame
+        self.frame_duration = 0.1  # seconds per frame (default)
         
         # Load animations
         self._load_animations()
@@ -109,10 +109,15 @@ class NaviSpriteManager:
         if not frames:
             return
         
+        # Use faster frame duration for buster animation
+        frame_duration = self.frame_duration
+        if self.current_animation == "buster":
+            frame_duration = 0.025  # 4x faster than original (0.1s), 2x faster than previous (0.05s)
+        
         self.frame_timer += dt
         
         # Advance frame when timer exceeds duration
-        if self.frame_timer >= self.frame_duration:
+        if self.frame_timer >= frame_duration:
             self.frame_timer = 0.0
             self.frame_index += 1
             

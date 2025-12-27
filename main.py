@@ -18,11 +18,12 @@ from scenes.battle_scene import BattleScene
 from scenes.folder_scene import FolderScene
 from scenes.settings_scene import SettingsScene
 from scenes.jack_in_scene import JackInScene
-from scenes.navi_cust_scene import NaviCustScene
+from scenes.equipment_scene import EquipmentScene  # Changed from NaviCustScene
 
 # Import core systems
 from storage.save_manager import SaveManager
 from combat.chips import ChipFolder
+from combat.equipment import Equipment  # NEW
 
 
 # =============================================================================
@@ -30,11 +31,10 @@ from combat.chips import ChipFolder
 # =============================================================================
 
 CONFIG = {
-    # Display settings for Waveshare 1.96" HAT (320x240 or adjust as needed)
-    # Common sizes: 320x240, 280x240, 240x240
-    "screen_width": 320,
-    "screen_height": 240,
-    "fullscreen": False,  # Set True for Pi deployment with Waveshare HAT
+    # Display settings for 128x128 LCD
+    "screen_width": 128,
+    "screen_height": 128,
+    "fullscreen": False,  # Set True for Pi deployment
     
     # FPS caps by scene type
     "fps_hub": 30,
@@ -91,7 +91,7 @@ class SceneManager:
                 "exp_to_next": 100,
                 "attack": 10,
                 "defense": 5,
-                # Buster stats (from NaviCust)
+                # Buster stats (from Equipment)
                 "buster_attack": 1,  # Base 1 damage
                 "buster_speed": 0,
                 "buster_charge": 0,
@@ -102,7 +102,12 @@ class SceneManager:
             "zenny": 0,  # Start with 0 zenny
             "day": 1,
             "current_area": None,
-            "chip_folder": ChipFolder.get_starter_folder(),  # Just 3 cannons
+            "chip_folder": {
+                "owned_chips": ChipFolder.get_starter_folder().chips,  # All owned
+                "folder_chips": ChipFolder.get_starter_folder().chips[:],  # In battle
+                "max_size": 30
+            },
+            "equipment": Equipment._get_starter_equipment(),  # NEW: Equipment system
             "settings": {
                 "show_ssid_names": True,
                 "sound_enabled": True,
@@ -127,7 +132,7 @@ class SceneManager:
             "folder": FolderScene,
             "settings": SettingsScene,
             "jack_in": JackInScene,
-            "navicust": NaviCustScene,
+            "equipment": EquipmentScene,  # Changed from navicust
         }
     
     def change_scene(self, scene_name: str, **kwargs):

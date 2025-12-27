@@ -1,10 +1,13 @@
 """
 Hub Scene - The main "Operator Desk" screen.
 Shows Navi status, menu options, and acts as home base.
+Optimized for 128x128 display with mugshot image.
 """
 
 import pygame
 import math
+import os
+from pathlib import Path
 from scenes.base_scene import BaseScene
 
 
@@ -18,9 +21,9 @@ class HubScene(BaseScene):
         
         # Menu options
         self.menu_items = [
-            ("Scan Areas", "scan"),
-            ("Chip Folder", "folder"),
-            ("Navi Cust", "navicust"),
+            ("Scan", "scan"),
+            ("Folder", "folder"),
+            ("Equipment", "equipment"),  # Changed from NaviCust
             ("Settings", "settings"),
         ]
         self.selected_index = 0
@@ -33,13 +36,37 @@ class HubScene(BaseScene):
         # Navi mood based on HP
         self.mood = "normal"  # normal, happy, damaged, critical
         
-        # Navi placeholder colors (will be sprite later)
-        self.navi_colors = {
-            "body": (0, 120, 255),      # Blue body
-            "helmet": (0, 80, 200),      # Darker blue helmet
-            "visor": (0, 255, 200),      # Cyan visor
-            "accent": (255, 220, 0),     # Yellow accents
-        }
+        # Load mugshot image
+        self.mugshot = self._load_mugshot()
+    
+    def _load_mugshot(self) -> pygame.Surface:
+        """Load the Navi mugshot image."""
+        mugshot_path = Path("assets/Mugshot/mugshot.png")
+        
+        # Try multiple possible paths
+        possible_paths = [
+            mugshot_path,
+            Path("C:/Users/Tan/OneDrive/Desktop/Mega/NetNavi/assets/Mugshot/mugshot.png"),
+            Path("assets/Mugshot/mugshot.webp"),
+        ]
+        
+        for path in possible_paths:
+            if path.exists():
+                try:
+                    img = pygame.image.load(str(path)).convert_alpha()
+                    # Scale to fit 128x128 display (about 40x40 for mugshot)
+                    scaled = pygame.transform.scale(img, (40, 40))
+                    print(f"[HUB] Loaded mugshot from {path}")
+                    return scaled
+                except Exception as e:
+                    print(f"[HUB] Failed to load {path}: {e}")
+        
+        # Fallback: create placeholder
+        print("[HUB] Using placeholder mugshot")
+        placeholder = pygame.Surface((40, 40), pygame.SRCALPHA)
+        pygame.draw.circle(placeholder, (0, 120, 255), (20, 20), 18)
+        pygame.draw.circle(placeholder, (0, 255, 200), (20, 20), 18, 2)
+        return placeholder
     
     def on_enter(self):
         """Update mood when entering hub."""
@@ -93,24 +120,24 @@ class HubScene(BaseScene):
             self.manager.push_scene("folder")
         elif scene_name == "settings":
             self.manager.push_scene("settings")
-        elif scene_name == "navicust":
-            self.manager.push_scene("navicust")
+        elif scene_name == "equipment":  # Changed from navicust
+            self.manager.push_scene("equipment")
     
     def draw(self, screen: pygame.Surface):
         """Draw the hub screen."""
         # Background gradient effect (simple)
         self._draw_background(screen)
         
-        # Draw Navi in center
+        # Draw Navi mugshot in center
         self._draw_navi(screen)
         
         # Draw status bars (top)
         self._draw_status_bars(screen)
         
-        # Draw menu (bottom/side)
+        # Draw menu (bottom)
         self._draw_menu(screen)
         
-        # Draw day counter and zenny
+        # Draw info bar
         self._draw_info_bar(screen)
     
     def _draw_background(self, screen: pygame.Surface):
@@ -120,8 +147,8 @@ class HubScene(BaseScene):
         
         # Animated grid lines (cyber effect)
         grid_color = (25, 35, 50)
-        grid_spacing = 20
-        offset = int(self.idle_timer * 10) % grid_spacing
+        grid_spacing = 16
+        offset = int(self.idle_timer * 8) % grid_spacing
         
         # Horizontal lines
         for y in range(-offset, self.height + grid_spacing, grid_spacing):
@@ -130,178 +157,106 @@ class HubScene(BaseScene):
         # Vertical lines
         for x in range(-offset, self.width + grid_spacing, grid_spacing):
             pygame.draw.line(screen, grid_color, (x, 0), (x, self.height), 1)
-        
-        # Center glow effect
-        pulse = (math.sin(self.pulse_timer) + 1) / 2  # 0 to 1
-        glow_radius = 60 + int(pulse * 10)
-        glow_alpha = 30 + int(pulse * 20)
-        
-        # Draw glow circles (simple radial gradient)
-        center_x, center_y = self.width // 2, self.height // 2 - 20
-        for i in range(3):
-            r = glow_radius - i * 15
-            alpha = glow_alpha - i * 10
-            color = (0, alpha, alpha // 2)
-            pygame.draw.circle(screen, color, (center_x, center_y), r)
     
     def _draw_navi(self, screen: pygame.Surface):
-        """Draw the Navi character (placeholder circles for now)."""
+        """Draw the Navi character mugshot."""
         center_x = self.width // 2
-        center_y = self.height // 2 - 20
+        center_y = 40
         
         # Idle animation - gentle bob
-        bob = math.sin(self.idle_timer * 2) * 3
+        bob = math.sin(self.idle_timer * 2) * 2
         center_y += int(bob)
         
-        # Body (large circle)
-        body_radius = 35
-        pygame.draw.circle(screen, self.navi_colors["body"], 
-                          (center_x, center_y), body_radius)
-        pygame.draw.circle(screen, self.navi_colors["helmet"], 
-                          (center_x, center_y), body_radius, 3)
-        
-        # Helmet top (smaller circle)
-        helmet_y = center_y - 25
-        pygame.draw.circle(screen, self.navi_colors["helmet"],
-                          (center_x, helmet_y), 20)
-        
-        # Visor (eye area)
-        visor_y = center_y - 5
-        visor_width = 40
-        visor_height = 12
-        
-        # Visor glow pulse
-        pulse = (math.sin(self.pulse_timer * 1.5) + 1) / 2
-        visor_color = (
-            int(self.navi_colors["visor"][0] * (0.7 + pulse * 0.3)),
-            int(self.navi_colors["visor"][1] * (0.7 + pulse * 0.3)),
-            int(self.navi_colors["visor"][2] * (0.7 + pulse * 0.3)),
-        )
-        
-        pygame.draw.ellipse(screen, visor_color,
-                           (center_x - visor_width // 2, visor_y - visor_height // 2,
-                            visor_width, visor_height))
-        
-        # Blink effect (close visor briefly)
-        if 0 < self.blink_timer < 0.15:
-            pygame.draw.ellipse(screen, self.navi_colors["helmet"],
-                               (center_x - visor_width // 2, visor_y - visor_height // 2,
-                                visor_width, visor_height))
-        
-        # Mood indicator - small expression
-        self._draw_mood_indicator(screen, center_x, center_y + 15)
-        
-        # Emblem (chest circle)
-        emblem_y = center_y + 20
-        pygame.draw.circle(screen, self.navi_colors["accent"],
-                          (center_x, emblem_y), 8)
-        pygame.draw.circle(screen, self.colors["text_white"],
-                          (center_x, emblem_y), 8, 2)
+        # Draw mugshot
+        mugshot_rect = self.mugshot.get_rect(center=(center_x, center_y))
+        screen.blit(self.mugshot, mugshot_rect)
         
         # Navi name below
         self.draw_text(screen, self.game_state["navi"]["name"],
-                      center_x, center_y + 55, 
+                      center_x, center_y + 26, 
                       color=self.colors["accent_cyan"],
-                      size=18, center=True)
+                      size=10, center=True)
         
         # Level
-        self.draw_text(screen, f"Lv.{self.game_state['navi']['level']}",
-                      center_x, center_y + 70,
+        self.draw_text(screen, f"Lv{self.game_state['navi']['level']}",
+                      center_x, center_y + 36,
                       color=self.colors["text_dim"],
-                      size=14, center=True)
-    
-    def _draw_mood_indicator(self, screen: pygame.Surface, x: int, y: int):
-        """Draw small mood expression."""
-        color = self.colors["text_white"]
-        
-        if self.mood == "happy":
-            # Simple smile arc
-            pygame.draw.arc(screen, color, (x - 8, y - 8, 16, 16), 
-                           3.14, 0, 2)
-        elif self.mood == "normal":
-            # Neutral line
-            pygame.draw.line(screen, color, (x - 6, y), (x + 6, y), 2)
-        elif self.mood == "damaged":
-            # Worried squiggle
-            points = [(x - 6, y), (x - 2, y - 2), (x + 2, y + 2), (x + 6, y)]
-            pygame.draw.lines(screen, color, False, points, 2)
-        elif self.mood == "critical":
-            # Distressed
-            pygame.draw.arc(screen, self.colors["hp_red"], 
-                           (x - 8, y - 2, 16, 16), 0, 3.14, 2)
+                      size=8, center=True)
     
     def _draw_status_bars(self, screen: pygame.Surface):
         """Draw HP and Energy bars at top."""
         navi = self.game_state["navi"]
         
-        # Panel background
-        self.draw_panel(screen, 5, 5, 150, 45, border_width=1)
+        # Compact bars for 128x128
+        bar_y = 2
+        bar_width = self.width - 8
         
         # HP Bar
-        self.draw_text(screen, "HP", 10, 10, size=12, 
-                      color=self.colors["text_dim"])
-        self.draw_progress_bar(screen, 30, 10, 115, 12,
+        self.draw_text(screen, "HP", 4, bar_y, size=8, color=self.colors["text_dim"])
+        self.draw_progress_bar(screen, 16, bar_y, bar_width - 16, 6,
                               navi["hp"], navi["max_hp"])
-        self.draw_text(screen, f"{navi['hp']}/{navi['max_hp']}", 
-                      90, 10, size=10, center=True,
-                      color=self.colors["text_white"])
         
         # Energy Bar
-        self.draw_text(screen, "EN", 10, 28, size=12,
-                      color=self.colors["text_dim"])
-        self.draw_progress_bar(screen, 30, 28, 115, 12,
+        bar_y += 8
+        self.draw_text(screen, "EN", 4, bar_y, size=8, color=self.colors["text_dim"])
+        self.draw_progress_bar(screen, 16, bar_y, bar_width - 16, 6,
                               navi["energy"], navi["max_energy"],
                               fill_color=self.colors["energy_blue"])
-        self.draw_text(screen, f"{navi['energy']}/{navi['max_energy']}",
-                      90, 28, size=10, center=True,
-                      color=self.colors["text_white"])
     
     def _draw_menu(self, screen: pygame.Surface):
-        """Draw menu options."""
-        menu_x = self.width - 110
-        menu_y = 50
-        item_height = 28
+        """Draw menu as one-item carousel (bottom area, no mugshot obstruction)."""
+        # Menu container - below mugshot
+        menu_y = 70
+        menu_height = 40
         
-        # Menu panel
-        panel_height = len(self.menu_items) * item_height + 15
-        self.draw_panel(screen, menu_x - 5, menu_y - 5, 
-                       110, panel_height, border_width=1)
+        # Get current menu item
+        current_label, _ = self.menu_items[self.selected_index]
         
-        for i, (label, _) in enumerate(self.menu_items):
-            y = menu_y + i * item_height
-            
-            # Selection indicator
-            if i == self.selected_index:
-                # Highlight bar
-                pygame.draw.rect(screen, self.colors["accent_cyan"],
-                               (menu_x, y, 100, item_height - 4))
-                text_color = self.colors["bg_dark"]
-                
-                # Arrow indicator
-                arrow_x = menu_x - 8
-                pulse = (math.sin(self.pulse_timer * 3) + 1) / 2
-                arrow_x -= int(pulse * 3)
-                self.draw_text(screen, ">", arrow_x, y + 2, 
-                              color=self.colors["accent_cyan"], size=18)
-            else:
-                text_color = self.colors["text_white"]
-            
-            self.draw_text(screen, label, menu_x + 5, y + 3,
-                          color=text_color, size=16)
+        # Draw container box
+        self.draw_panel(screen, 4, menu_y, self.width - 8, menu_height, 
+                       color=self.colors["bg_panel"], border_width=2)
+        
+        # Draw current item (LARGE text, centered)
+        text_y = menu_y + menu_height // 2 - 6
+        
+        # Pulse effect for selection
+        pulse = (math.sin(self.pulse_timer * 3) + 1) / 2
+        text_color = self.colors["accent_cyan"]
+        
+        # Arrow indicator (animated)
+        arrow_x = 8 + int(pulse * 2)
+        self.draw_text(screen, "▶", arrow_x, text_y, 
+                      size=16, color=text_color)
+        
+        # Menu item text (very large, readable)
+        self.draw_text(screen, current_label, self.width // 2, text_y,
+                      size=24, center=True, color=self.colors["text_white"])
+        
+        # Scroll indicators
+        indicator_y = menu_y + menu_height - 8
+        
+        # Up arrow (if not first item)
+        if self.selected_index > 0:
+            self.draw_text(screen, "▲", self.width // 2 - 20, indicator_y,
+                          size=8, center=True, color=self.colors["text_dim"])
+        
+        # Down arrow (if not last item)
+        if self.selected_index < len(self.menu_items) - 1:
+            self.draw_text(screen, "▼", self.width // 2 + 20, indicator_y,
+                          size=8, center=True, color=self.colors["text_dim"])
     
     def _draw_info_bar(self, screen: pygame.Surface):
         """Draw day and zenny at bottom."""
-        # Bottom panel
-        self.draw_panel(screen, 5, self.height - 30, self.width - 10, 25,
-                       border_width=1)
+        # Bottom info
+        info_y = self.height - 10
         
         # Day
-        self.draw_text(screen, f"Day {self.game_state['day']}", 
-                      15, self.height - 25, size=14,
+        self.draw_text(screen, f"D{self.game_state['day']}", 
+                      4, info_y, size=8,
                       color=self.colors["text_dim"])
         
         # Zenny (currency)
         zenny_text = f"{self.game_state['zenny']}z"
         self.draw_text(screen, zenny_text,
-                      self.width - 60, self.height - 25, size=14,
+                      self.width - 30, info_y, size=8,
                       color=self.colors["accent_yellow"])
