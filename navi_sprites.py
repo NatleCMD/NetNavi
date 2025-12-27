@@ -23,17 +23,12 @@ class NaviSpriteManager:
         
         print(f"[NAVI SPRITES] Loading from: {self.base_path.absolute()}")
         
-        # Check if palette1 exists
-        palette1_path = self.base_path / "palette1"
-        if palette1_path.exists():
-            print(f"[NAVI SPRITES] Found palette1 subdirectory")
-        
         # Animation states
         self.animations: Dict[str, List[pygame.Surface]] = {}
         self.current_animation = "idle"
         self.frame_index = 0
         self.frame_timer = 0.0
-        self.frame_duration = 0.065  # seconds per frame (faster animations)
+        self.frame_duration = 0.1  # seconds per frame
         
         # Load animations
         self._load_animations()
@@ -52,7 +47,7 @@ class NaviSpriteManager:
         
         for anim_name, (anim_num, frame_count) in animation_sources.items():
             frames = []
-            print(f"\n[NAVI SPRITES] Loading {anim_name} (animation_{anim_num})...")
+            print(f"\n[NAVI SPRITES] Loading {anim_name}...")
             
             for frame_num in range(frame_count):
                 # Generate filename variants to try
@@ -63,35 +58,35 @@ class NaviSpriteManager:
                 
                 loaded = False
                 
-                # Try palette1 subdirectory FIRST
+                # Try root directory first
                 for filename in possible_names:
-                    path = self.base_path / "palette1" / filename
+                    path = self.base_path / filename
                     
                     if path.exists():
                         try:
                             img = pygame.image.load(str(path)).convert_alpha()
                             frames.append(img)
                             loaded = True
-                            print(f"  ✓ Frame {frame_num}: palette1/{filename} ({img.get_width()}x{img.get_height()})")
+                            print(f"  ✓ Frame {frame_num}: {filename} ({img.get_width()}x{img.get_height()})")
                             break
                         except Exception as e:
-                            print(f"  ✗ Failed to load palette1/{filename}: {e}")
+                            print(f"  ✗ Failed to load {filename}: {e}")
                             continue
                 
-                # Try root directory as fallback
+                # Try palette1 subdirectory
                 if not loaded:
                     for filename in possible_names:
-                        path = self.base_path / filename
+                        path = self.base_path / "palette1" / filename
                         
                         if path.exists():
                             try:
                                 img = pygame.image.load(str(path)).convert_alpha()
                                 frames.append(img)
                                 loaded = True
-                                print(f"  ✓ Frame {frame_num}: {filename} ({img.get_width()}x{img.get_height()})")
+                                print(f"  ✓ Frame {frame_num}: palette1/{filename} ({img.get_width()}x{img.get_height()})")
                                 break
                             except Exception as e:
-                                print(f"  ✗ Failed to load {filename}: {e}")
+                                print(f"  ✗ Failed to load palette1/{filename}: {e}")
                                 continue
                 
                 if not loaded:
@@ -99,7 +94,7 @@ class NaviSpriteManager:
                     placeholder = pygame.Surface((84, 84), pygame.SRCALPHA)
                     placeholder.fill((255, 0, 255, 128))  # Magenta = missing
                     frames.append(placeholder)
-                    print(f"  ✗ MISSING: Frame {frame_num}")
+                    print(f"  ✗ MISSING: Frame {frame_num} (no file found)")
             
             if frames:
                 self.animations[anim_name] = frames

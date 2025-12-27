@@ -1,20 +1,24 @@
 """
 Battle Scene - Grid-based combat with MMBN-style mechanics.
-Enhanced with arena sprite and animated background effects.
+
+This version adds BN-style chip behaviors:
+- projectile (default)
+- spreader (on-hit behind/diagonals)
+- shotgun (on-hit tile behind)
+- airshot push (push enemy back)
+- lob bomb (delayed impact on a panel)
+- invis (timed invulnerability)
+
+Works even if Chip doesn't define behavior/params:
+- Falls back to name-based behavior mapping.
 """
 
 import pygame
 import math
 import random
-import sys
-from pathlib import Path
 from scenes.base_scene import BaseScene
 from combat.chips import Chip, CHIP_DATABASE, roll_chip_drop
-
-# Add root directory to path for navi_sprites import
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from navi_sprites import get_navi_sprites
-
 
 class Projectile:
     """A moving projectile on the battle grid."""
@@ -82,20 +86,16 @@ class Enemy:
 
 
 class BattleScene(BaseScene):
-    """Grid-based battle with custom screen chip selection and arena sprite."""
+    """Grid-based battle with custom screen chip selection."""
 
     target_fps = 24
 
     def __init__(self, manager, enemy: dict = None, area: dict = None, **kwargs):
         super().__init__(manager)
         self.area = area or {}
-        
         # Sprite manager for Navi animations
         self.navi_sprites = get_navi_sprites()
         self.navi_sprites.play_idle()
-        
-        # Load arena sprite
-        self.arena_sprite = self._load_arena_sprite()
 
         # Grid: 3 rows x 6 cols
         self.grid_cols = 6
@@ -103,7 +103,7 @@ class BattleScene(BaseScene):
         self.cell_width = 40
         self.cell_height = 28
         self.grid_x = (self.width - self.grid_cols * self.cell_width) // 2
-        self.grid_y = 72  # Fine-tuned positioning
+        self.grid_y = 70
 
         # Spawn 1-3 enemies
         self.enemies = self._spawn_enemies(enemy)
@@ -146,24 +146,6 @@ class BattleScene(BaseScene):
         # Rewards
         self.rewards = {"zenny": 0, "chips": []}
         self.battle_result = None
-
-    def _load_arena_sprite(self):
-        """Load arena sprite from assets."""
-        try:
-            from pathlib import Path
-            sprite_path = Path("assets/sprites/arena/Grid_1.png")
-            if sprite_path.exists():
-                sprite = pygame.image.load(str(sprite_path)).convert_alpha()
-                # Scale to fit battle area - stretch vertically to fill grid area better
-                target_width = self.width - 4
-                target_height = 90  # Taller to fill grid area (was 50)
-                sprite = pygame.transform.scale(sprite, (target_width, target_height))
-                print(f"[ARENA] Loaded Grid_1.png ({sprite.get_width()}x{sprite.get_height()})")
-                return sprite
-        except Exception as e:
-            print(f"[ARENA] Failed to load sprite: {e}")
-        
-        return None
 
     def _spawn_enemies(self, enemy_data):
         enemies = []
@@ -215,7 +197,6 @@ class BattleScene(BaseScene):
     def update(self, dt):
         # Update Navi sprite animation
         self.navi_sprites.update(dt)
-        
         self.anim_timer += dt
         self.hit_flash = max(0, self.hit_flash - dt * 5)
         self.shake = max(0, self.shake - dt * 8)
@@ -618,7 +599,7 @@ class BattleScene(BaseScene):
         self.projectiles.append(proj)
 
     # ----------------------------
-    # SWORDS
+    # SWORDS (unchanged core)
     # ----------------------------
     def _use_sword(self, chip):
         # Play sword attack animation
@@ -646,7 +627,7 @@ class BattleScene(BaseScene):
         self.slash_effects.append(SlashEffect(hit_positions, color, 0.25))
 
     # ----------------------------
-    # ENEMY AI
+    # ENEMY AI (unchanged)
     # ----------------------------
     def _update_enemies(self, dt):
         for enemy in self.enemies:
@@ -694,7 +675,7 @@ class BattleScene(BaseScene):
         self.projectiles.append(proj)
 
     # ----------------------------
-    # DAMAGE RESOLUTION
+    # DAMAGE RESOLUTION (BN: invis blocks hits)
     # ----------------------------
     def _navi_hit(self, damage):
         # Invis: ignore hits
@@ -720,7 +701,7 @@ class BattleScene(BaseScene):
         self.damage_popups.append([sx, sy - 20, f"-{actual}", 1.0, self.colors["accent_cyan"]])
 
     # ----------------------------
-    # CUSTOM SCREEN / RESULTS
+    # CUSTOM SCREEN / RESULTS (unchanged)
     # ----------------------------
     def _open_custom_screen(self):
         self.phase = "custom"
@@ -798,13 +779,10 @@ class BattleScene(BaseScene):
         return sx, sy
 
     # ----------------------------
-    # DRAWING
+    # DRAWING (small invis flicker)
     # ----------------------------
     def draw(self, screen):
         screen.fill((15, 15, 25))
-        
-        # Draw animated background
-        self._draw_background(screen)
 
         shake_x = int(math.sin(self.anim_timer * 50) * self.shake * 3) if self.shake > 0 else 0
 
@@ -829,31 +807,25 @@ class BattleScene(BaseScene):
         elif self.phase == "lose":
             self._draw_lose(screen)
 
-    def _draw_background(self, screen):
-        """Draw animated background with arena sprite."""
-        # Draw arena sprite
-        if self.arena_sprite:
-            # Center arena sprite horizontally
-            x = (self.width - self.arena_sprite.get_width()) // 2
-            y = self.grid_y
-            screen.blit(self.arena_sprite, (x, y))
-
     def _draw_grid(self, screen, shake_x):
-        # Grid is now mostly covered by arena sprite, but draw underlying panels for reference
         for row in range(self.grid_rows):
             for col in range(self.grid_cols):
                 x = self.grid_x + col * self.cell_width + shake_x
                 y = self.grid_y + row * self.cell_height
 
-                # Only draw semi-transparent panels if arena sprite not loaded
-                if not self.arena_sprite:
-                    if col < 3:
-                        panel_color = (40, 80, 160)
-                    else:
-                        panel_color = (160, 50, 60)
-                    
-                    pygame.draw.rect(screen, panel_color, (x+1, y+1, self.cell_width-2, self.cell_height-2))
-                    pygame.draw.rect(screen, (80, 80, 100), (x, y, self.cell_width, self.cell_height), 1)
+                if col < 3:
+                    panel_color = (40, 80, 160)
+                    panel_light = (60, 110, 200)
+                    panel_dark = (25, 50, 110)
+                else:
+                    panel_color = (160, 50, 60)
+                    panel_light = (200, 70, 80)
+                    panel_dark = (110, 30, 40)
+
+                pygame.draw.rect(screen, panel_color, (x+1, y+1, self.cell_width-2, self.cell_height-2))
+                pygame.draw.line(screen, panel_light, (x+2, y+2), (x+self.cell_width-3, y+2), 2)
+                pygame.draw.line(screen, panel_dark, (x+2, y+self.cell_height-3), (x+self.cell_width-3, y+self.cell_height-3), 2)
+                pygame.draw.rect(screen, (80, 80, 100), (x, y, self.cell_width, self.cell_height), 1)
 
     def _draw_slashes(self, screen, shake_x):
         for slash in self.slash_effects:
@@ -904,16 +876,17 @@ class BattleScene(BaseScene):
         """Draw Navi with sprite animations."""
         sx, sy = self._grid_to_screen(self.navi_x, self.navi_y)
         sx += shake_x
-        
+
         # Hit flash (blink white)
         if self.hit_flash > 0 and int(self.hit_flash * 10) % 2 == 0:
             return
-        
+
         # Invis flicker
         if self.navi_invis_timer > 0 and int(self.anim_timer * 12) % 2 == 0:
             return
-        
+
         # Draw sprite (centered on grid cell)
+        # Sprites are 76-84px, grid cells are 40px, scale 1.2 makes them smaller but visible
         self.navi_sprites.draw(screen, sx, sy, scale=1.2, center=True)
 
     def _draw_popups(self, screen):
